@@ -9,7 +9,7 @@ The visualizations provide a clear and dynamic overview of customer perceptions 
 Clone the repository
 
 ```bash
-git clone https://github.com/jcatanop/mail-survey-dashboard.git
+git clone https://github.com/appox-ai/mail-survey-dashboard.git
 ```
 
 Create a virtual environment
