@@ -29,7 +29,7 @@ Install the dependencies
 **Prerequisite**: dash requires Python v3.8 or later
 
 ```bash
-pip install dash
+pip install dash pandas
 ```
 
 ## Usage

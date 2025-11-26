@@ -1,7 +1,7 @@
 import json
 import pandas as pd
 from dash import Dash, html, dcc, Input, Output
-import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime
 
 # ---------------------------
@@ -31,8 +31,14 @@ df['rate'] = pd.to_numeric(df['rate'])
 # Calculate the rate percentage: 1 = 25% , 2 = 50% , 3 = 75% , 4 = 100%
 df['rate_percent'] = df['rate'] * 100/4
 
+df['year_month'] = df['year'].astype(str) + '-' + df['month'].astype(str)
+
 # Sort by date
 df = df.sort_values('date')
+
+# calculate the average of rate_percent by mail
+df_avg = df.groupby(['year_month','year','month', 'mail'])['rate_percent'].mean().reset_index()
+df_avg = df_avg.sort_values(['year','month']) 
 
 # ---------------------------
 # 3. Create the Dash app
@@ -41,28 +47,20 @@ df = df.sort_values('date')
 app = Dash(__name__)
 
 app.layout = html.Div([
-    html.H1("Customer satisfaction"),
+    html.Hr(),
+    html.H1(children="Customer satisfaction", style={'textAlign': 'center'}),
+    html.Hr(),
     
     dcc.Dropdown(
-        id='year-dropdown',
-        options=[{"label": col, "value": col} for col in df['year'].unique()],
-        value=df['year'].unique(),
-        style={'width': '48%'}
-    ),
-    dcc.Dropdown(
-        id='month-dropdown',
-        options=[{"label": col, "value": col} for col in df['month'].unique()],
-        value=df['month'].unique(),
+        df_avg['mail'].unique(),
+        id='mail-dropdown',
         style={'width': '48%'}
     ),
 
-    dcc.Graph(id="grafico"),
+    dcc.Graph(id="graph"),
 
-    html.Button("Exportar a HTML", id="btn-export", n_clicks=0),
-    html.Div(id="mensaje-export"),
-    
     html.Div([
-        html.H3("Datos brutos"),
+        html.H3("Raw data"),
         html.Pre(df.to_string())
     ], style={'marginTop': 20})
 ])
@@ -72,52 +70,62 @@ app.layout = html.Div([
 # ---------------------------
 
 @app.callback(
-    Output("grafico", "figure"),
-    Input("year-dropdown", "value"),
-    Input("month-dropdown", "value")
+    Output("graph", "figure"),
+    Input("mail-dropdown", "value"),
 )
-def actualizar_grafico(selected_years, selected_months):
-    # Ensure that selected_years and selected_months are lists
-    if not isinstance(selected_years, list):
-        selected_years = [selected_years]
-    if not isinstance(selected_months, list):
-        selected_months = [selected_months]
+def update_graph(selected_mail):
+    # If no mail is selected, show all
+    if selected_mail is None:
+        filtered_df = df_avg
+    else:
+        # Ensure that selected_mail is a list
+        if not isinstance(selected_mail, list):
+            selected_mail = [selected_mail]
+        
+        # Filter the dataframe by the selected mail
+        filtered_df = df_avg[df_avg['mail'].isin(selected_mail)]
     
-    # Filter the dataframe by the selected years and months
-    filtered_df = df[
-        (df['year'].isin(selected_years)) & 
-        (df['month'].isin(selected_months))
-    ]
+    # Create the figure with the filtered data
+    fig = go.Figure()
     
-    if filtered_df.empty:
-        filtered_df = df
-
-    # Create the graph with the filtered data
-    fig = px.line(
-        filtered_df, 
-        x='date', 
-        y='rate_percent', 
-        markers=True,
-        title="Customer Satisfaction Over Time",
-        labels={'date': 'Date', 'rate_percent': 'Satisfaction (%)'}
-    )
+    # Add a bar for each mail
+    for mail in filtered_df['mail'].unique():
+        mail_data = filtered_df[filtered_df['mail'] == mail]
+        fig.add_trace(go.Bar(
+            x=mail_data['year_month'],
+            y=mail_data['rate_percent'],
+            name=mail,
+            text=mail_data['rate_percent'].round(1).astype(str) + '%',
+            textposition='auto'
+        ))
     
     # Improve the graph layout
     fig.update_layout(
+        title="Customer Satisfaction Over Time",
         xaxis_title='Date',
         yaxis_title='Satisfaction (%)',
         yaxis=dict(
             tickmode='array',
-            tickvals=[25, 50, 75, 100],
-            ticktext=['25% (1)', '50% (2)', '75% (3)', '100% (4)']
+            tickvals=[0, 25, 50, 75, 100],
+            ticktext=['0%', '25% (1)', '50% (2)', '75% (3)', '100% (4)'],
+            range=[0, 105]  # Ensure that 100% is visible
         ),
-        hovermode='x unified'
+        hovermode='x unified',
+        barmode='group',  # Group the bars by date
+        legend_title_text='Email',
+        height=600
+    )
+    
+    # Improve the tooltip
+    fig.update_traces(
+        hovertemplate='<br>'.join([
+            'Date: %{x}',
+            'Satisfaction: %{y:.1f}%',
+            '<extra></extra>'
+        ])
     )
     
     return fig
 
-# ---------------------------
-# 5. Run the app
-# ---------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8050, debug=False)
