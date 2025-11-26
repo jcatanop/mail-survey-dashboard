@@ -1,4 +1,4 @@
-import json
+import requests
 import pandas as pd
 from dash import Dash, html, dcc, Input, Output
 import plotly.graph_objects as go
@@ -8,8 +8,9 @@ from datetime import datetime
 # 1. Read JSON from file
 # ---------------------------
 
-with open("data.json") as f:
-    data = json.load(f)
+url = "https://appox.ai/mail-survey/data.json"
+resp = requests.get(url)
+data = resp.json()
 
 # ---------------------------
 # 2. Process the data
